@@ -1,0 +1,2 @@
+This is a placeholder for default pet image.
+Replace with actual image file or use online URLs.
