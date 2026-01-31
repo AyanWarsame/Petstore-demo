@@ -10,71 +10,77 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build and push backend image
-      id: build_backend
-      uses: docker/build-push-action@v5
-      with:
-        context: ./backend
-        file: ./backend/Dockerfile
-        push: true
-        tags: |
-          ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:latest
-          ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:${{ github.sha }}
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:latest
+            ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:${{ github.sha }}
 
-    - name: Build and push frontend image
-      id: build_frontend
-      uses: docker/build-push-action@v5
-      with:
-        context: ./frontend
-        file: ./frontend/Dockerfile
-        push: true
-        tags: |
-          ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:latest
-          ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:${{ github.sha }}
-
-    - name: Set outputs
-      run: |
-        echo "backend_image=${{ env.DOCKERHUB_USERNAME }}/petstore-backend:latest" >> $GITHUB_OUTPUT
-        echo "frontend_image=${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:latest" >> $GITHUB_OUTPUT
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:latest
+            ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:${{ github.sha }}
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
+      # ✅ AWS credentials (THIS FIXES YOUR ERROR)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Set up kubeconfig
-      run: |
-        mkdir -p $HOME/.kube
-        echo "${{ secrets.KUBE_CONFIG }}" | base64 --decode > $HOME/.kube/config
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: latest
 
-    - name: Deploy to Kubernetes
-      env:
-        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      run: |
-        sed -i "s|image: .*petstore-backend.*|image: ${DOCKERHUB_USERNAME}/petstore-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
-        sed -i "s|image: .*petstore-frontend.*|image: ${DOCKERHUB_USERNAME}/petstore-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
-        kubectl apply -f k8s/namespace.yaml
-        kubectl apply -f k8s/frontend-configmap.yaml
-        kubectl apply -f k8s/backend-deployment.yaml
-        kubectl apply -f k8s/frontend-deployment.yaml
-        kubectl apply -f k8s/ingress.yaml
+      # ✅ Connect kubectl to EKS
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ secrets.AWS_REGION }} \
+            --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+      - name: Deploy to Kubernetes
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          sed -i "s|image: .*petstore-backend.*|image: ${DOCKERHUB_USERNAME}/petstore-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
+          sed -i "s|image: .*petstore-frontend.*|image: ${DOCKERHUB_USERNAME}/petstore-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
+
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/frontend-configmap.yaml
+          kubectl apply -f k8s/backend-deployment.yaml
+          kubectl apply -f k8s/frontend-deployment.yaml
+          kubectl apply -f k8s/ingress.yaml
