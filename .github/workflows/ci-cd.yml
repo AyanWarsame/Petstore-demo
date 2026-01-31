@@ -52,7 +52,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ AWS credentials (THIS FIXES YOUR ERROR)
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -60,13 +59,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Install kubectl
+      - name: Set up kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: latest
 
-      # ✅ Connect kubectl to EKS
-      - name: Update kubeconfig
+      - name: Update kubeconfig for EKS
         run: |
           aws eks update-kubeconfig \
             --region ${{ secrets.AWS_REGION }} \
