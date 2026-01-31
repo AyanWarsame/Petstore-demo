@@ -74,9 +74,12 @@ jobs:
       - name: Deploy to petstore-demo namespace
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
-          sed -i "s|image: .*petstore-backend.*|image: ${DOCKERHUB_USERNAME}/petstore-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
-          sed -i "s|image: .*petstore-frontend.*|image: ${DOCKERHUB_USERNAME}/petstore-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
+          echo "Replacing backend image..."
+          sed -i "s|image: petstore-demo-backend.*|image: ${DOCKERHUB_USERNAME}/petstore-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
+          echo "Replacing frontend image..."
+          sed -i "s|image: petstore-demo-frontend.*|image: ${DOCKERHUB_USERNAME}/petstore-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
 
           kubectl apply -n petstore-demo -f k8s/frontend-configmap.yaml
           kubectl apply -n petstore-demo -f k8s/backend-deployment.yaml
