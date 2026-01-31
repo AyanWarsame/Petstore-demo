@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build, Push and Deploy
 
 on:
   push:
@@ -6,12 +6,16 @@ on:
       - main
 
 jobs:
-  docker:
+  build-and-push:
     runs-on: ubuntu-latest
-
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
 
     - name: Login to Docker Hub
       uses: docker/login-action@v3
@@ -19,9 +23,53 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build and Push Docker Image
+    - name: Build and push backend image
+      id: build_backend
       uses: docker/build-push-action@v5
       with:
-        context: .
+        context: ./backend
+        file: ./backend/Dockerfile
         push: true
-        tags: ayan241/petstore:latest
+        tags: |
+          ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:latest
+          ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:${{ github.sha }}
+
+    - name: Build and push frontend image
+      id: build_frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: true
+        tags: |
+          ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:latest
+          ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:${{ github.sha }}
+
+    - name: Set outputs
+      run: |
+        echo "backend_image=${{ env.DOCKERHUB_USERNAME }}/petstore-backend:latest" >> $GITHUB_OUTPUT
+        echo "frontend_image=${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:latest" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Deploy to Kubernetes
+      env:
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      run: |
+        sed -i "s|image: petstore-demo-backend:latest|image: ${DOCKERHUB_USERNAME}/petstore-backend:latest|" k8s/backend-deployment.yaml || true
+        sed -i "s|image: petstore-demo-frontend:latest|image: ${DOCKERHUB_USERNAME}/petstore-frontend:latest|" k8s/frontend-deployment.yaml || true
+        kubectl apply -f k8s/namespace.yaml
+        kubectl apply -f k8s/frontend-configmap.yaml
+        kubectl apply -f k8s/backend-deployment.yaml
+        kubectl apply -f k8s/frontend-deployment.yaml
+        kubectl apply -f k8s/ingress.yaml
