@@ -62,12 +62,17 @@ jobs:
       with:
         version: 'latest'
 
+    - name: Set up kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 --decode > $HOME/.kube/config
+
     - name: Deploy to Kubernetes
       env:
         DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       run: |
-        sed -i "s|image: petstore-demo-backend:latest|image: ${DOCKERHUB_USERNAME}/petstore-backend:latest|" k8s/backend-deployment.yaml || true
-        sed -i "s|image: petstore-demo-frontend:latest|image: ${DOCKERHUB_USERNAME}/petstore-frontend:latest|" k8s/frontend-deployment.yaml || true
+        sed -i "s|image: .*petstore-backend.*|image: ${DOCKERHUB_USERNAME}/petstore-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
+        sed -i "s|image: .*petstore-frontend.*|image: ${DOCKERHUB_USERNAME}/petstore-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
         kubectl apply -f k8s/namespace.yaml
         kubectl apply -f k8s/frontend-configmap.yaml
         kubectl apply -f k8s/backend-deployment.yaml
