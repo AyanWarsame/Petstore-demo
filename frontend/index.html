@@ -19,6 +19,51 @@
 
         <!-- Main Content -->
         <div class="main-content">
+
+            
+             <!-- Pets List -->
+            <div class="card pets-card">
+                <div class="card-header">
+                    <h2><i class="fas fa-list"></i> Available Pets</h2>
+                    <div class="card-actions">
+                        <input id="petSearch" class="search-input" type="text" placeholder="Search pets by name, type, or description...">
+                        <button onclick="loadPets()" class="btn-refresh">
+                            <i class="fas fa-redo"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="stats">
+                    <div class="stat-item">
+                        <i class="fas fa-dog"></i>
+                        <span id="dogCount">0 Dogs</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-cat"></i>
+                        <span id="catCount">0 Cats</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-paw"></i>
+                        <span id="totalPets">0 Total</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span id="totalValue">$0 Value</span>
+                    </div>
+                </div>
+                
+                <div class="pets-grid" id="petsList">
+                    <!-- Pets will be loaded here dynamically -->
+                    <div class="empty-state">
+                        <i class="fas fa-paw"></i>
+                        <p>No pets in store. Add your first pet!</p>
+                        <button onclick="loadSamplePets()" class="btn-secondary">
+                            <i class="fas fa-magic"></i> Load Sample Pets
+                        </button>
+                    </div>
+                </div>
+            </div> 
+
             <!-- Add Pet Form -->
             <div class="card form-card">
                 <h2><i class="fas fa-plus-circle"></i> Add New Pet</h2>
@@ -72,48 +117,7 @@
                 </form>
             </div>
 
-            <!-- Pets List -->
-            <div class="card pets-card">
-                <div class="card-header">
-                    <h2><i class="fas fa-list"></i> Available Pets</h2>
-                    <div class="card-actions">
-                        <input id="petSearch" class="search-input" type="text" placeholder="Search pets by name, type, or description...">
-                        <button onclick="loadPets()" class="btn-refresh">
-                            <i class="fas fa-redo"></i> Refresh
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="stats">
-                    <div class="stat-item">
-                        <i class="fas fa-dog"></i>
-                        <span id="dogCount">0 Dogs</span>
-                    </div>
-                    <div class="stat-item">
-                        <i class="fas fa-cat"></i>
-                        <span id="catCount">0 Cats</span>
-                    </div>
-                    <div class="stat-item">
-                        <i class="fas fa-paw"></i>
-                        <span id="totalPets">0 Total</span>
-                    </div>
-                    <div class="stat-item">
-                        <i class="fas fa-money-bill-wave"></i>
-                        <span id="totalValue">$0 Value</span>
-                    </div>
-                </div>
-                
-                <div class="pets-grid" id="petsList">
-                    <!-- Pets will be loaded here dynamically -->
-                    <div class="empty-state">
-                        <i class="fas fa-paw"></i>
-                        <p>No pets in store. Add your first pet!</p>
-                        <button onclick="loadSamplePets()" class="btn-secondary">
-                            <i class="fas fa-magic"></i> Load Sample Pets
-                        </button>
-                    </div>
-                </div>
-            </div>
+            
         </div>
     </div>
 
