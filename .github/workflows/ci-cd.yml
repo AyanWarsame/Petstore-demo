@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
@@ -31,8 +32,8 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:latest
-            ${{ env.DOCKERHUB_USERNAME }}/petstore-backend:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-backend:${{ github.sha }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
@@ -41,8 +42,8 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:latest
-            ${{ env.DOCKERHUB_USERNAME }}/petstore-frontend:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-frontend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-frontend:${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -57,9 +58,9 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: eu-west-1
 
-      - name: Set up kubectl
+      - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: latest
@@ -67,18 +68,17 @@ jobs:
       - name: Update kubeconfig for EKS
         run: |
           aws eks update-kubeconfig \
-            --region ${{ secrets.AWS_REGION }} \
-            --name ${{ secrets.EKS_CLUSTER_NAME }}
+            --region eu-west-1 \
+            --name innovation-lab
 
-      - name: Deploy to Kubernetes
+      - name: Deploy to petstore-demo namespace
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           sed -i "s|image: .*petstore-backend.*|image: ${DOCKERHUB_USERNAME}/petstore-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
           sed -i "s|image: .*petstore-frontend.*|image: ${DOCKERHUB_USERNAME}/petstore-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
 
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/frontend-configmap.yaml
-          kubectl apply -f k8s/backend-deployment.yaml
-          kubectl apply -f k8s/frontend-deployment.yaml
-          kubectl apply -f k8s/ingress.yaml
+          kubectl apply -n petstore-demo -f k8s/frontend-configmap.yaml
+          kubectl apply -n petstore-demo -f k8s/backend-deployment.yaml
+          kubectl apply -n petstore-demo -f k8s/frontend-deployment.yaml
+          kubectl apply -n petstore-demo -f k8s/ingress.yaml
