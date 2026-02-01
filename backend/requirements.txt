@@ -11,4 +11,4 @@ gunicorn==21.2.0
 
 # Utilities
 python-dotenv==1.0.0
-Werkzeug==2.3.0
+Werkzeug>=2.3.0

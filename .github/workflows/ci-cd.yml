@@ -46,6 +46,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./backend
+          file: ./backend/Dockerfile
           platforms: linux/arm64,linux/amd64
           push: true
           tags: |
@@ -53,6 +54,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
   build-and-push-frontend:
     runs-on: ubuntu-latest
@@ -82,6 +85,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
+          file: ./frontend/Dockerfile
           platforms: linux/arm64,linux/amd64
           push: true
           tags: |
@@ -89,6 +93,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
   deploy-to-eks:
     runs-on: ubuntu-latest
