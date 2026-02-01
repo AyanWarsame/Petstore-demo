@@ -10,7 +10,7 @@ RUN rm -rf /usr/share/nginx/html/* && \
 
 # Copy frontend static files and nginx configuration
 COPY index.html style.css script.js /usr/share/nginx/html/
-COPY assets/ /usr/share/nginx/html/assets/ 2>/dev/null || true
+COPY assets/ /usr/share/nginx/html/assets/
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Create nginx cache and temp directories
