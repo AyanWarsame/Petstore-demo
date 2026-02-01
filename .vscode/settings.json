@@ -1,5 +1,0 @@
-{
-  "yaml.schemas": {
-    "https://raw.githubusercontent.com/github/super-linter/main/schema/github-workflow.json": "/*.github/workflows/*"
-  }
-}
