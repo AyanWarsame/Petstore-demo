@@ -27,6 +27,8 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: default
+      imagePullSecrets:
+      - name: ecr-secret
       securityContext:
         fsGroup: 101
       containers:

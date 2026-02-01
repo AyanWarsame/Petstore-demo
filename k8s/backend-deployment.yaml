@@ -26,6 +26,8 @@ spec:
         prometheus.io/port: "8000"
     spec:
       serviceAccountName: default
+      imagePullSecrets:
+      - name: ecr-secret
       securityContext:
         fsGroup: 1000
       containers:
