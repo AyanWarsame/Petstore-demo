@@ -115,4 +115,28 @@ Both versions are built automatically! 🎉
 
 Everything is configured for production-ready multi-architecture deployment.
 
+---
+
+## 🛠️ Error logging
+
+- **Purpose:** Keep a running, human-readable log of errors encountered and their resolutions.
+- **Log file:** [ERROR_LOG.md](ERROR_LOG.md)
+- **Helper script:** `scripts/log_error.sh` — append a new error entry quickly.
+
+Usage examples:
+
+Pipe an error/stack trace:
+```bash
+./scripts/log_error.sh "Title of error" "environment" <<'ERR'
+<paste stack trace here>
+ERR
+```
+
+Or pass a short message as the third argument:
+```bash
+./scripts/log_error.sh "Title" "local" "Short error summary"
+```
+
+When you resolve an error, edit [ERROR_LOG.md](ERROR_LOG.md) to fill in **Root cause**, **Fix applied**, set **Status:** Resolved and add **Resolved date**.
+
 **Next**: `./scripts/build-multiarch.sh` → `./scripts/deploy.sh` → Success! 🚀
