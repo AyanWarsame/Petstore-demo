@@ -1,41 +1,124 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend
+  name: petstore-backend
   namespace: petstore-demo
+  labels:
+    app: petstore-backend
+    version: v1
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
-      app: backend
+      app: petstore-backend
   template:
     metadata:
       labels:
-        app: backend
+        app: petstore-backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
     spec:
+      serviceAccountName: default
+      securityContext:
+        fsGroup: 1000
       containers:
       - name: backend
-        image: petstore-demo-backend:latest
+        image: 024848484634.dkr.ecr.eu-west-1.amazonaws.com/ayan-warsame/backend:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 8000
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: DB_USER
+          value: "Petstore"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: petstore-db-creds
+              key: password
+              optional: true
+        - name: DB_HOST
+          value: "localhost"
+        - name: DB_PORT
+          value: "3306"
+        - name: DB_NAME
+          value: "petstore_db"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: FLASK_ENV
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        securityContext:
+          runAsNonRoot: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
         volumeMounts:
-        - name: uploads
+        - name: uploads-volume
           mountPath: /app/uploads
+        - name: static-volume
+          mountPath: /app/static
+        - name: tmp
+          mountPath: /tmp
       volumes:
-      - name: uploads
+      - name: uploads-volume
         emptyDir: {}
+      - name: static-volume
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend-service
+  name: petstore-backend
   namespace: petstore-demo
+  labels:
+    app: petstore-backend
 spec:
   type: ClusterIP
+  sessionAffinity: None
   selector:
-    app: backend
+    app: petstore-backend
   ports:
   - name: http
     port: 8000
-    targetPort: 8000
+    targetPort: http
+    protocol: TCP
+  publishNotReadyAddresses: false

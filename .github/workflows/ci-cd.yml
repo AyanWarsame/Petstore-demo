@@ -1,49 +1,61 @@
-name: Build, Push and Deploy
+name: Build, Push and Deploy (Multi-Arch to ECR)
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: 024848484634.dkr.ecr.eu-west-1.amazonaws.com
+  AWS_REGION: eu-west-1
+  EKS_CLUSTER: innovation-lab
+  K8S_NAMESPACE: petstore-demo
+  REGISTRY_PATH: ayan-warsame
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Build and push backend image
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push backend (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          file: ./backend/Dockerfile
+          platforms: linux/arm64,linux/amd64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-backend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/backend:latest
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/backend:${{ github.sha }}
 
-      - name: Build and push frontend image
+      - name: Build & push frontend (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
-          file: ./frontend/Dockerfile
+          platforms: linux/arm64,linux/amd64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-frontend:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/petstore-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/frontend:latest
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/frontend:${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -58,30 +70,11 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: latest
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
 
-      - name: Update kubeconfig for EKS
+      - name: Deploy to cluster
         run: |
-          aws eks update-kubeconfig \
-            --region eu-west-1 \
-            --name innovation-lab
-
-      - name: Deploy to petstore-demo namespace
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          echo "Replacing backend image..."
-          sed -i "s|image: petstore-demo-backend.*|image: ${DOCKERHUB_USERNAME}/petstore-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
-          echo "Replacing frontend image..."
-          sed -i "s|image: petstore-demo-frontend.*|image: ${DOCKERHUB_USERNAME}/petstore-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
-
-          kubectl apply -n petstore-demo -f k8s/frontend-configmap.yaml
-          kubectl apply -n petstore-demo -f k8s/backend-deployment.yaml
-          kubectl apply -n petstore-demo -f k8s/frontend-deployment.yaml
-          kubectl apply -n petstore-demo -f k8s/ingress.yaml
+          kubectl apply -n $K8S_NAMESPACE -f k8s/

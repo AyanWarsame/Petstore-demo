@@ -1,5 +1,14 @@
+# Core Framework
 Flask==2.3.3
 flask-cors==4.0.0
-SQLAlchemy==2.0.46
+
+# Database
+SQLAlchemy==2.0.23
 pymysql==1.0.3
-gunicorn
+
+# Production Server
+gunicorn==21.2.0
+
+# Utilities
+python-dotenv==1.0.0
+Werkzeug==2.3.0
