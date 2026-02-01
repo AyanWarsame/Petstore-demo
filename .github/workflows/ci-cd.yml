@@ -1,24 +1,27 @@
-name: Build, Push and Deploy (Multi-Arch to ECR)
+
+name: Build, Push and Deploy (Multi-arch)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 env:
   REGISTRY: 024848484634.dkr.ecr.eu-west-1.amazonaws.com
+  BACKEND_IMAGE_NAME: ayan-warsame/petstore-backend
+  FRONTEND_IMAGE_NAME: ayan-warsame/petstore-frontend
   AWS_REGION: eu-west-1
   EKS_CLUSTER: innovation-lab
   K8S_NAMESPACE: petstore-demo
-  REGISTRY_PATH: ayan-warsame
 
 jobs:
-  build-and-push:
+  build-and-push-backend:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up QEMU
@@ -35,34 +38,63 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & push backend (multi-arch)
+      - name: Build and push backend (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           platforms: linux/arm64,linux/amd64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/backend:latest
-            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build & push frontend (multi-arch)
+  build-and-push-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push frontend (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           platforms: linux/arm64,linux/amd64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/frontend:latest
-            ${{ env.REGISTRY }}/${{ env.REGISTRY_PATH }}/frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  deploy:
-    needs: build-and-push
+  deploy-to-eks:
     runs-on: ubuntu-latest
-
+    needs: [build-and-push-backend, build-and-push-frontend]
+    
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
@@ -73,8 +105,22 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
-
-      - name: Deploy to cluster
         run: |
-          kubectl apply -n $K8S_NAMESPACE -f k8s/
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }}
+
+      - name: Create namespace
+        run: |
+          kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -n ${{ env.K8S_NAMESPACE }} -f k8s/
+          
+          # Wait for rollouts
+          kubectl rollout status deployment/petstore-backend -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+          kubectl rollout status deployment/petstore-frontend -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+          
+          echo "✅ Deployment completed successfully!"
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }} -o wide
